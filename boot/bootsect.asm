@@ -17,7 +17,7 @@
 ;
 ;     16-bit mem map  (seg:off)
 ;  0x0000:0x0000 -> 0x0000:0x0500  BIOS stuff
-;  0x0000:0x0500 -> 0x0000:0x2100  FAT12 rootdir
+;  0x0000:0x0500 -> 0x0000:0x2100  FAT12 RootDirectory
 ;  0x0000:0x2100 -> 0x0000:0x3300  FAT for FAT12
 ;  0x0000:0x3300 -> 0x0000:0x6c00  14,25kb free space
 ;  0x0000:0x6c00 -> 0x0000:0x7400  IDT, 256 descriptors
@@ -69,25 +69,27 @@ BS_FileSysType      db  'FAT12   '      	; file system type, must be 8 bytes
 ; Print message string
 ;************************************************************************
 %macro MSG 1
+	push si
 	mov si, %1
 	call Func_Print_MSG
+	pop si
 %endmacro
 
 ;************************************************************************
 ;	Data Section
 ;************************************************************************
-BootingMsg 	: db "Booting", 0x0D, 0x0A, 0x00
-SearchingMsg	: db "Searching", 0x0D, 0x0A, 0x00
-ReadFailMsg	: db "Read Error", 0x0D, 0x0A, 0x00
+BootingMsg 	: db "Start Booting", 0x00
+ReadedFailMsg	: db 0x0D, 0x0A, "Read Error!", 0x00
 LoaderFileName	: db "LOADER  BIN"
-LoadingMsg	: db "Loading LOADER.BIN", 0x0D, 0x0A, 0x00
-LoaderFailMsg	: db "No LOADER", 0x0D, 0x0A, 0x00
-LoaderSuccMsg	: db "Success", 0x0D, 0x0A, 0x00
+LoadingMsg	: db 0x0D, 0x0A, "Loading LOADER.BIN", 0x00
+LoadingProgress : db ".", 0x00
+FileNotFoundMsg	: db 0x0D, 0x0A, "No LOADER", 0x00
+LoadedSuccessMsg: db 0x0D, 0x0A, "Loaded!", 0x00
 
 ROOT_OFFSET 	equ 0x0500
 FAT_OFFSET 	equ 0x2100
 LOADER_OFFSET 	equ 0x0000
-LOADER_SEG 	equ 0x1000
+LOADER_SEG 	equ 0x07e0
 
 ;**********************************************************************************
 ; Bellow is a FAT12 formatted disk:
@@ -97,7 +99,7 @@ LOADER_SEG 	equ 0x1000
 ; --------------------------------------------------------------------------------
 ;**********************************************************************************
 dataSectorStart dw 0x0000			; Starting sector of Data Region
-cluster	dw 0x0000			; The Cluster of the current Root directory entry
+cluster		dw 0x0000			; The Cluster of the current Root directory entry
 
 ;************************************************************************
 ;	general setup
@@ -229,9 +231,6 @@ LoadFAT:
 ; Find Stage 2: Loader.bin
 ;************************************************************************
 FindFile:
-	; print a message on the screen
-	MSG SearchingMsg
-
 	; browse root directory for binary image
 	mov dx, WORD [BPB_RootEntCnt]		; load loop counter: the number of entrys. If we reach 0, file doesnt exist
 	mov bx, ROOT_OFFSET			; first Root directory entry was loaded here
@@ -250,7 +249,7 @@ FindFile:
 		
 	; if loop the number of entrys (cx) = 0, means file is not found in root directory
 	.NOTFOUND:
-		MSG LoaderFailMsg
+		MSG FileNotFoundMsg
 		mov ah, 0x00			; Function 0
 		int 0x16			; invoke BIOS 0x16, Function 0: Await keypress
 		int 0x19			; invoke BIOS 0x19: reboot computer
@@ -320,12 +319,10 @@ LoadFile:
 
 	.SUCCESS:
 		pop bx
-		MSG LoaderSuccMsg
-		jmp LOADER_SEG:LOADER_OFFSET	; jump to loaded file
+		MSG LoadedSuccessMsg
 	
-
-.LOOP:
-	jmp .LOOP
+LoadSuccess:
+	jmp LOADER_SEG:LOADER_OFFSET		; jump to loaded file
 
 ;************************************************************************
 ; message: write the string pointed to by si
@@ -400,6 +397,7 @@ Func_Read_Sectors:
 		jmp .Failed			; the read operation failed
 
 	.SUCCESS:
+		MSG LoadingProgress
 		popa
 		add bx, WORD [BPB_BytesPerSec]   ; queue next buffer
 		inc ax                           ; queue next sector
@@ -410,7 +408,7 @@ Func_Read_Sectors:
 	; Show a message and wait for a key before reboot 
 	;************************************************************************
 	.Failed:
-		MSG ReadFailMsg
+		MSG ReadedFailMsg
 		mov ah, 0x00			; Function 0
 		int 0x16			; invoke BIOS 0x16, Function 0: Await keypress
 		int 0x19			; invoke BIOS 0x19: reboot computer

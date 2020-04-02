@@ -16,8 +16,10 @@ bits 16
 ; Print message string
 ;************************************************************************
 %macro MSG 1
+	push si
 	mov si, %1
 	call Func_RM_Print_MSG
+	pop si
 %endmacro
 
 ;************************************************************************
@@ -46,8 +48,8 @@ Func_RM_Print_MSG:
 ;************************************************************************
 ;	 32 Bit Protected Mode Routines
 ;************************************************************************
-;bits 32
+bits 32
 
-;%define	VIDMEM 0xB8000			; video memory
+%define	VIDMEM 0xB8000			; video memory
 
 %endif 		; __STDIO_INCLUDE__

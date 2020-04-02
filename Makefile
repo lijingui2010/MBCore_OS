@@ -40,13 +40,15 @@ TOUCH	:= touch -c
 BOOTSECT  := $(BUILD_DIR)/boot/bootsect
 LOADER	  := $(BUILD_DIR)/boot/loader.bin
 
+KERNEL	  := $(BUILD_DIR)/kernel/kernel.sys
+
 BOOTSIGN  := $(BUILD_DIR)/tools/bootsign
 
 DISK_IMG  := $(BUILD_DIR)/disk.img
 
 all: Image
 
-Image: $(BOOTSECT) $(LOADER)
+Image: $(BOOTSECT) $(LOADER) $(KERNEL)
 
 $(BOOTSECT): $(BOOTSIGN)
 	make -C boot
@@ -58,11 +60,15 @@ $(BOOTSIGN):
 $(LOADER):
 	make -C boot
 
+$(KERNEL):
+	make -C kernel
+
 disk: Image
 	dd if=/dev/zero of=$(DISK_IMG) bs=512 count=2880
 	dd if=$(BOOTSECT) of=$(DISK_IMG) bs=512 seek=0 count=1 conv=notrunc
 	sudo mount -o loop $(DISK_IMG) $(MNT_DIR)
 	sudo cp -fv $(LOADER) $(MNT_DIR)
+	sudo cp -fv $(KERNEL) $(MNT_DIR)
 	sudo umount $(MNT_DIR)
 	@echo "Success!"
 
@@ -72,6 +78,7 @@ bochs:
 clean:
 	make -C boot clean
 	make -C tools clean
+	make -C kernel clean
 	$(RM) $(DISK_IMG)
 	$(RMDIR) $(BUILD_DIR)
 	sudo $(RMDIR) $(MNT_DIR)
